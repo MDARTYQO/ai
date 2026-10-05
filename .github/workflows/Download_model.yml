@@ -1,0 +1,46 @@
+name: Download and Split Qwen 3.5 Model
+
+on:
+  workflow_dispatch:  # הפעלה ידנית
+  # או: push, schedule, וכו'
+
+jobs:
+  download-and-split-model:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama service
+        run: |
+          ollama serve &
+          sleep 5
+
+      - name: Download Qwen 3.5 7B model
+        run: |
+          ollama pull qwen3.5:7b
+
+      - name: Find and split model blob
+        run: |
+          # מצא את ה-blob הגדול ביותר (המודל עצמו)
+          BLOB_DIR="$HOME/.ollama/models/blobs"
+          LARGEST_BLOB=$(ls -lS "$BLOB_DIR"/sha256-* | head -1 | awk '{print $NF}')
+
+          echo "Found model blob: $LARGEST_BLOB"
+          BLOB_SIZE=$(stat -f%z "$LARGEST_BLOB" 2>/dev/null || stat -c%s "$LARGEST_BLOB")
+          echo "Model size: $(($BLOB_SIZE / 1024 / 1024)) MB"
+
+          # פצל לחלקים של 1.9GB (מתחת למגבלת 2GB)
+          split -b 1900M "$LARGEST_BLOB" qwen3.5-7b-part-
+
+          echo "Split complete. Parts created:"
+          ls -lh qwen3.5-7b-part-*
+
+      - name: Upload model parts as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qwen3.5-7b-model-parts
+          path: qwen3.5-7b-part-*
+          retention-days: 90
