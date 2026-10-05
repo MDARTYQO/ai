@@ -26,10 +26,22 @@ jobs:
         run: |
           # מצא את ה-blob הגדול ביותר (המודל עצמו)
           BLOB_DIR="$HOME/.ollama/models/blobs"
-          LARGEST_BLOB=$(ls -lS "$BLOB_DIR"/sha256-* | head -1 | awk '{print $NF}')
+          
+          echo "Checking blob directory: $BLOB_DIR"
+          ls -lah "$BLOB_DIR" || echo "Directory not found"
+          
+          # מצא את הקובץ הגדול ביותר בתיקייה
+          LARGEST_BLOB=$(find "$BLOB_DIR" -type f -exec ls -lS {} + 2>/dev/null | head -1 | awk '{print $NF}')
+          
+          if [ -z "$LARGEST_BLOB" ]; then
+            echo "Error: No blob files found"
+            echo "Checking alternative locations:"
+            find "$HOME/.ollama" -type f -name "sha256*" 2>/dev/null || echo "No sha256 files found"
+            exit 1
+          fi
 
           echo "Found model blob: $LARGEST_BLOB"
-          BLOB_SIZE=$(stat -f%z "$LARGEST_BLOB" 2>/dev/null || stat -c%s "$LARGEST_BLOB")
+          BLOB_SIZE=$(stat -c%s "$LARGEST_BLOB")
           echo "Model size: $(($BLOB_SIZE / 1024 / 1024)) MB"
 
           # פצל לחלקים של 1.9GB (מתחת למגבלת 2GB)
